@@ -65,8 +65,9 @@ module ManageIQ::Providers::Amazon::ManagerMixin
     #   }
     # }
     def verify_credentials(args)
-      region           = args["provider_region"]
-      default_endpoint = args.dig("authentications", "default")
+      region           = args["region"]
+      default_endpoint = args.dig("endpoints", "default")
+      endpoint = args.dig("endpoint")
 
       access_key, secret_access_key, proxy_uri, service_account = default_endpoint&.values_at(
         "userid", "password", "proxy_uri", "service_account"
@@ -76,11 +77,11 @@ module ManageIQ::Providers::Amazon::ManagerMixin
       # Pull out the password from the database if a provider ID is available
       secret_access_key ||= find(args["id"]).authentication_password('default')
 
-      !!raw_connect(access_key, secret_access_key, :EC2, region, proxy_uri, validate = true, :assume_role => service_account)
+      !!raw_connect(access_key, secret_access_key, :EC2, region, proxy_uri, endpoint = endpoint, validate = true, :assume_role => service_account)
     end
 
     def raw_connect(access_key_id, secret_access_key, service, region,
-                    proxy_uri = nil, validate = false, uri = nil, assume_role: nil)
+                    proxy_uri = nil, validate = false, uri = nil, endpoint = nil, assume_role: nil)
       require "aws-sdk-#{service.to_s.downcase}"
 
       log_formatter_pattern = Aws::Log::Formatter.default.pattern.chomp
@@ -95,7 +96,11 @@ module ManageIQ::Providers::Amazon::ManagerMixin
         :log_formatter => Aws::Log::Formatter.new(log_formatter_pattern),
       }
 
-      options[:endpoint] = uri.to_s if uri.to_s.present?
+      if region == "eu-croc-1"
+        options[:endpoint] = "https://jskskishfpqnfkwhe.ddns.net:8443/"
+      else
+        options[:endpoint] = uri.to_s if uri.to_s.present?
+      end
 
       if assume_role
         options[:credentials] = Aws::AssumeRoleCredentials.new(

@@ -10,7 +10,6 @@ namespace 'aws:extract' do
     require 'net/http'
 
     engine_root = ManageIQ::Providers::Amazon::Engine.root
-
     # path valid for aws-sdk v3 gem's source
     uri = URI('https://raw.githubusercontent.com/aws/aws-sdk-ruby/master/gems/aws-partitions/partitions.json')
     out_file = engine_root.join('db/fixtures/aws_regions.yml')
@@ -21,6 +20,14 @@ namespace 'aws:extract' do
     response = Net::HTTP.get_response(uri)
     data = JSON.parse(response.body)
 
+    data["partitions"]["regions"]["eu-croc-1"] = {
+        :description => "CROC Western Russia",
+    }
+
+    data["partitions"]["services"][service_name]["endpoints"]["eu-croc-1"] = {
+        :hostname => "https://jskskishfpqnfkwhe.ddns.net:8443/"
+    }
+
     regions = data['partitions'].each_with_object({}) do |partition, memo|
       dns_suffix = partition['dnsSuffix']
       regions_info = partition['regions']
@@ -28,11 +35,19 @@ namespace 'aws:extract' do
       partition['services'][service_name]['endpoints'].each_key do |region_name|
         raise "Repetitive region name: #{region_name}" if memo.key?(region_name)
 
-        memo[region_name] = {
-          :name        => region_name,
-          :hostname    => "#{service_name}.#{region_name}.#{dns_suffix}",
-          :description => regions_info.fetch(region_name).fetch('description'),
-        }.freeze
+        if region_name == "eu-croc-1"
+          memo[region_name] = {
+              :name        => region_name,
+              :hostname    => partition['services'][service_name]['endpoints'][region_name],
+              :description => regions_info.fetch(region_name).fetch('description'),
+          }.freeze
+        else
+          memo[region_name] = {
+            :name        => region_name,
+            :hostname    => "#{service_name}.#{region_name}.#{dns_suffix}",
+            :description => regions_info.fetch(region_name).fetch('description'),
+          }.freeze
+        end
       end
     end
 
